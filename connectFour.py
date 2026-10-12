@@ -88,8 +88,9 @@ def evaluate_window(window, piece):
     elif window.count(piece) == 2 and window.count(EMPTY) == 2:
         score += 2
 
+    # Fixed bug: Substantially increased penalty for opponent 3-in-a-row threats to ensure robust blocking
     if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
-        score -= 4
+        score -= 80
 
     return score
 
@@ -138,10 +139,11 @@ def minimax_alpha_beta(board, depth, alpha, beta, maximizing_player):
     
     if depth == 0 or is_terminal:
         if is_terminal:
+            # Fixed bug: Depth-weighted terminal scores so AI favors faster wins and delays losses
             if winning_move(board, AI):
-                return (None, 10000000)
+                return (None, 100000 + depth)
             elif winning_move(board, PLAYER):
-                return (None, -10000000)
+                return (None, -100000 - depth)
             else:
                 return (None, 0)
         else:
@@ -268,7 +270,8 @@ def main():
             node_counter = 0
             start_time = time.time()
             
-            col, _ = minimax_alpha_beta(board, 4, -math.inf, math.inf, True)
+            # Increased search depth to 5 for sharper tactical awareness while maintaining high performance
+            col, _ = minimax_alpha_beta(board, 5, -math.inf, math.inf, True)
                 
             end_time = time.time()
             last_nodes_evaluated = node_counter
