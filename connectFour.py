@@ -24,11 +24,11 @@ BLACK = (20, 20, 20)
 RED = (217, 83, 79)
 YELLOW = (240, 173, 78)
 WHITE = (255, 255, 255)
-GREEN = (92, 184, 92)
+GREEN = (46, 204, 113)  # Vibrant green for winning line highlight
 
 SCREEN = pygame.display.set_mode(SIZE)
 pygame.display.set_caption("Connect Four AI: Minimax with Alpha-Beta Pruning")
-myfont = pygame.font.SysFont("monospace", 24, bold=True)
+myfont = pygame.font.SysFont("monospace", 22, bold=True)
 smallfont = pygame.font.SysFont("monospace", 18)
 
 # Game Pieces
@@ -55,27 +55,32 @@ def get_next_open_row(board, col):
         if board[r][col] == EMPTY:
             return r
 
-def winning_move(board, piece):
+def get_winning_coordinates(board, piece):
+    # Returns a list of (row, col) tuples for the 4 connected pieces if a win exists, else []
     # Horizontal
     for c in range(COLUMN_COUNT-3):
         for r in range(ROW_COUNT):
             if board[r][c] == piece and board[r][c+1] == piece and board[r][c+2] == piece and board[r][c+3] == piece:
-                return True
+                return [(r, c), (r, c+1), (r, c+2), (r, c+3)]
     # Vertical
     for c in range(COLUMN_COUNT):
         for r in range(ROW_COUNT-3):
             if board[r][c] == piece and board[r+1][c] == piece and board[r+2][c] == piece and board[r+3][c] == piece:
-                return True
+                return [(r, c), (r+1, c), (r+2, c), (r+3, c)]
     # Positive Diagonal
     for c in range(COLUMN_COUNT-3):
         for r in range(ROW_COUNT-3):
             if board[r][c] == piece and board[r+1][c+1] == piece and board[r+2][c+2] == piece and board[r+3][c+3] == piece:
-                return True
+                return [(r, c), (r+1, c+1), (r+2, c+2), (r+3, c+3)]
     # Negative Diagonal
     for c in range(COLUMN_COUNT-3):
         for r in range(3, ROW_COUNT):
             if board[r][c] == piece and board[r-1][c+1] == piece and board[r-2][c+2] == piece and board[r-3][c+3] == piece:
-                return True
+                return [(r, c), (r-1, c+1), (r-2, c+2), (r-3, c+3)]
+    return []
+
+def winning_move(board, piece):
+    return len(get_winning_coordinates(board, piece)) > 0
 
 def evaluate_window(window, piece):
     score = 0
@@ -88,7 +93,6 @@ def evaluate_window(window, piece):
     elif window.count(piece) == 2 and window.count(EMPTY) == 2:
         score += 2
 
-    # Fixed bug: Substantially increased penalty for opponent 3-in-a-row threats to ensure robust blocking
     if window.count(opp_piece) == 3 and window.count(EMPTY) == 1:
         score -= 80
 
@@ -139,7 +143,6 @@ def minimax_alpha_beta(board, depth, alpha, beta, maximizing_player):
     
     if depth == 0 or is_terminal:
         if is_terminal:
-            # Fixed bug: Depth-weighted terminal scores so AI favors faster wins and delays losses
             if winning_move(board, AI):
                 return (None, 100000 + depth)
             elif winning_move(board, PLAYER):
@@ -180,7 +183,7 @@ def minimax_alpha_beta(board, depth, alpha, beta, maximizing_player):
                 break
         return best_col, value
 
-def draw_board(board, message=""):
+def draw_board(board, message="", winning_coords=[]):
     SCREEN.fill(BLACK)
     
     # Draw top panel for stats and winner notifications
@@ -188,28 +191,34 @@ def draw_board(board, message=""):
     
     if message:
         msg_text = myfont.render(message, True, WHITE)
-        SCREEN.blit(msg_text, (15, 35))
+        SCREEN.blit(msg_text, (10, 35))
     else:
         algo_text = smallfont.render(f"Algo: {current_algorithm} (Press 'T' toggle)", True, WHITE)
-        nodes_text = smallfont.render(f"Nodes: {last_nodes_evaluated}", True, GREEN)
-        time_text = smallfont.render(f"Time: {last_time_taken:.1f}ms", True, GREEN)
+        nodes_text = smallfont.render(f"Nodes: {last_nodes_evaluated}", True, (100, 220, 100))
+        time_text = smallfont.render(f"Time: {last_time_taken:.1f}ms", True, (100, 220, 100))
         
         SCREEN.blit(algo_text, (10, 12))
         SCREEN.blit(nodes_text, (10, 38))
         SCREEN.blit(time_text, (440, 38))
 
-    # Draw grid and pieces
+    # Draw grid slots
     for c in range(COLUMN_COUNT):
         for r in range(ROW_COUNT):
             pygame.draw.rect(SCREEN, BLUE, (c*SQUARESIZE, (r+1)*SQUARESIZE, SQUARESIZE, SQUARESIZE))
             pygame.draw.circle(SCREEN, BLACK, (int(c*SQUARESIZE + SQUARESIZE/2), int((r+1)*SQUARESIZE + SQUARESIZE/2)), RADIUS)
     
+    # Draw pieces (highlighting winning line in Green)
     for c in range(COLUMN_COUNT):
         for r in range(ROW_COUNT):
-            if board[r][c] == PLAYER:
-                pygame.draw.circle(SCREEN, RED, (int(c*SQUARESIZE + SQUARESIZE/2), int((r+1)*SQUARESIZE + SQUARESIZE/2)), RADIUS)
-            elif board[r][c] == AI:
-                pygame.draw.circle(SCREEN, YELLOW, (int(c*SQUARESIZE + SQUARESIZE/2), int((r+1)*SQUARESIZE + SQUARESIZE/2)), RADIUS)
+            if board[r][c] != EMPTY:
+                if (r, c) in winning_coords:
+                    color = GREEN
+                elif board[r][c] == PLAYER:
+                    color = RED
+                else:
+                    color = YELLOW
+                pygame.draw.circle(SCREEN, color, (int(c*SQUARESIZE + SQUARESIZE/2), int((r+1)*SQUARESIZE + SQUARESIZE/2)), RADIUS)
+                
     pygame.display.update()
 
 def main():
@@ -221,6 +230,8 @@ def main():
     draw_board(board)
 
     while True:
+        winning_coords = []
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -240,11 +251,12 @@ def main():
                     row = get_next_open_row(board, col)
                     drop_piece(board, row, col, PLAYER)
 
-                    if winning_move(board, PLAYER):
-                        draw_board(board, "Player (Red) Wins! Press 'R' to Play Again")
+                    player_win_coords = get_winning_coordinates(board, PLAYER)
+                    if player_win_coords:
+                        draw_board(board, "Player Wins! Press 'R' to Restart", player_win_coords)
                         game_over = True
                     elif len(get_valid_locations(board)) == 0:
-                        draw_board(board, "It's a Draw! Press 'R' to Play Again")
+                        draw_board(board, "It's a Draw! Press 'R' to Restart")
                         game_over = True
                     else:
                         turn = AI
@@ -270,7 +282,6 @@ def main():
             node_counter = 0
             start_time = time.time()
             
-            # Increased search depth to 5 for sharper tactical awareness while maintaining high performance
             col, _ = minimax_alpha_beta(board, 5, -math.inf, math.inf, True)
                 
             end_time = time.time()
@@ -281,11 +292,12 @@ def main():
                 row = get_next_open_row(board, col)
                 drop_piece(board, row, col, AI)
 
-                if winning_move(board, AI):
-                    draw_board(board, "AI (Yellow) Wins! Press 'R' to Play Again")
+                ai_win_coords = get_winning_coordinates(board, AI)
+                if ai_win_coords:
+                    draw_board(board, "AI Wins! Press 'R' to Restart", ai_win_coords)
                     game_over = True
                 elif len(get_valid_locations(board)) == 0:
-                    draw_board(board, "It's a Draw! Press 'R' to Play Again")
+                    draw_board(board, "It's a Draw! Press 'R' to Restart")
                     game_over = True
                 else:
                     draw_board(board)
